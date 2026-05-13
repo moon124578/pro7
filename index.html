@@ -158,34 +158,63 @@
             renderer.toneMappingExposure = 1.0;
             container.appendChild(renderer.domElement);
 
-            // --- LUXURY SUEDE TABLE ---
+            // --- LUXURY SUEDE TABLE WITH PADDED RAIL ---
             const tableGroup = new THREE.Group();
-            const tableGeo = new THREE.BoxGeometry(15, 1, 15);
+            
+            // 1. The Main Felt (Rounded)
+            const tableGeo = new RoundedBoxGeometry(15, 1, 15, 6, 0.4);
             const tableMat = new THREE.MeshPhysicalMaterial({
-                color: 0x1e1e1e,
-                roughness: 0.8,
-                metalness: 0.0,
+                color: 0x5c7cff,
+                roughness: 0.7,
+                metalness: 0.1,
                 sheen: 1.0,
-                sheenRoughness: 0.5,
-                sheenColor: new THREE.Color(0x333333),
-                reflectivity: 0.0
+                sheenRoughness: 0.4,
+                sheenColor: new THREE.Color(0x88aaff),
+                clearcoat: 0.1,
+                clearcoatRoughness: 0.2
             });
             const tableMesh = new THREE.Mesh(tableGeo, tableMat);
             tableMesh.position.y = -0.5;
             tableMesh.receiveShadow = true;
             tableGroup.add(tableMesh);
 
+            // 2. The Padded Leather Rail (Rim)
+            const railGeo = new RoundedBoxGeometry(16, 1.2, 16, 8, 0.8);
+            const railMat = new THREE.MeshPhysicalMaterial({
+                color: 0x111111, // Deep black leather
+                roughness: 0.3,
+                metalness: 0.2,
+                clearcoat: 0.5
+            });
+            const railMesh = new THREE.Mesh(railGeo, railMat);
+            railMesh.position.y = -0.4;
+            tableGroup.add(railMesh);
+
+            // 3. Branded Felt Texture
             const feltCanvas = document.createElement('canvas');
-            feltCanvas.width = 512; feltCanvas.height = 512;
+            feltCanvas.width = 1024; feltCanvas.height = 1024;
             const fctx = feltCanvas.getContext('2d');
-            fctx.fillStyle = '#1e1e1e'; fctx.fillRect(0,0,512,512);
-            for(let i=0; i<20000; i++) {
-                fctx.fillStyle = `rgba(255,255,255,${Math.random()*0.03})`;
-                fctx.fillRect(Math.random()*512, Math.random()*512, 1, 1);
+            fctx.fillStyle = '#5c7cff'; fctx.fillRect(0,0,1024,1024);
+            
+            // Add subtle noise
+            for(let i=0; i<40000; i++) {
+                fctx.fillStyle = `rgba(255,255,255,${Math.random()*0.04})`;
+                fctx.fillRect(Math.random()*1024, Math.random()*1024, 2, 2);
             }
+
+            // Decorative gold border on felt
+            fctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
+            fctx.lineWidth = 15;
+            fctx.strokeRect(100, 100, 824, 824);
+            
+            // Branding Text
+            fctx.fillStyle = 'rgba(212, 175, 55, 0.2)';
+            fctx.font = 'bold 80px Outfit';
+            fctx.textAlign = 'center';
+            fctx.fillText('CACOMIX DICE TICKET', 512, 512);
+
             const feltTex = new THREE.CanvasTexture(feltCanvas);
-            feltTex.wrapS = feltTex.wrapT = THREE.RepeatWrapping;
-            feltTex.repeat.set(4, 4);
+            tableMat.map = feltTex;
             tableMat.roughnessMap = feltTex;
 
             scene.add(tableGroup);
@@ -207,6 +236,7 @@
             // Physics
             world = new CANNON.World();
             world.gravity.set(0, -60, 0);
+            world.solver.iterations = 20; // Increased precision
             const diceMat = new CANNON.Material();
             const groundMat = new CANNON.Material();
             
@@ -218,7 +248,7 @@
             // Dice to Dice bounciness
             world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { 
                 friction: 0.3, 
-                restitution: 0.7 
+                restitution: 0.8 // Slightly higher restitution
             }));
 
             const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: groundMat });
@@ -282,9 +312,13 @@
         function roll() {
             if(isRolling) return; isRolling = true;
             document.getElementById('result').innerText = "...";
-            diceModels.forEach(d => {
-                d.body.position.set((Math.random()-0.5)*2, 10 + Math.random()*3, (Math.random()-0.5)*1.5);
+            diceModels.forEach((d, i) => {
+                const x = (i - 1) * 3 + (Math.random() - 0.5); // Spaced apart: -3, 0, 3
+                const z = (Math.random() - 0.5) * 2;
+                d.body.position.set(x, 10 + Math.random() * 3, z);
                 // --- INCREASED INITIAL FORCE ---
+                d.body.velocity.set(0,0,0); // Reset velocity
+                d.body.angularVelocity.set(0,0,0); // Reset angular velocity
                 d.body.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*60, -90, (Math.random()-0.5)*60), d.body.position);
                 d.body.angularVelocity.set((Math.random()-0.5)*120, (Math.random()-0.5)*120, (Math.random()-0.5)*120);
             });
