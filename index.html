@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CACOMIX | Bouncy VIP Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050505; font-family: 'Outfit', sans-serif; color: #fff; }
+        
+        #app-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #2c2c2c 0%, #050505 100%);
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 85vmin;
+            height: 85vmin;
+            max-width: 750px;
+            max-height: 750px;
+            background: #000;
+            border: 4px solid #333333;
+            box-shadow: 0 50px 100px rgba(0,0,0,1), 0 0 50px rgba(51, 51, 51, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .ui-header {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            right: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .ui-footer {
+            position: absolute;
+            bottom: 25px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .branding {
+            font-weight: 900;
+            font-size: 1.1rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: #d4af37;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 15px;
+            border: 1px solid #d4af37;
+            border-radius: 4px;
+        }
+
+        .result-panel {
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(15px);
+            padding: 12px 20px;
+            border-left: 3px solid #d4af37;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .btn-roll {
+            pointer-events: auto;
+            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+            color: #000;
+            padding: 18px 50px;
+            font-size: 0.8rem;
+            font-weight: 900;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .btn-roll:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 15px 40px rgba(212, 175, 55, 0.3); filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="game-wrapper">
+            <div class="ui-header">
+                <div class="branding">Cacomix VIP</div>
+                <div class="result-panel">
+                    <span class="text-[8px] tracking-[0.3em] uppercase text-white/50 block mb-1">Hand Value</span>
+                    <span id="result" class="text-2xl font-black text-[#d4af37]">--</span>
+                </div>
+            </div>
+
+            <div id="canvas-container"></div>
+
+            <div class="ui-footer">
+                <button id="roll-btn" class="btn-roll">Place Bet & Roll</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        let scene, camera, renderer, world, composer, diceModels = [];
+        let isRolling = false;
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x151515);
+            scene.fog = new THREE.Fog(0x151515, 10, 40);
+
+            camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
+            camera.position.set(0, 14, 18);
+            camera.lookAt(0, -3.5, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            // --- LUXURY SUEDE TABLE ---
+            const tableGroup = new THREE.Group();
+            const tableGeo = new THREE.BoxGeometry(15, 1, 15);
+            const tableMat = new THREE.MeshPhysicalMaterial({
+                color: 0x2c2c2c,
+                roughness: 0.8,
+                metalness: 0.0,
+                sheen: 1.0,
+                sheenRoughness: 0.5,
+                sheenColor: new THREE.Color(0x4a4a4a),
+                reflectivity: 0.0
+            });
+            const tableMesh = new THREE.Mesh(tableGeo, tableMat);
+            tableMesh.position.y = -0.5;
+            tableMesh.receiveShadow = true;
+            tableGroup.add(tableMesh);
+
+            const feltCanvas = document.createElement('canvas');
+            feltCanvas.width = 512; feltCanvas.height = 512;
+            const fctx = feltCanvas.getContext('2d');
+            fctx.fillStyle = '#2c2c2c'; fctx.fillRect(0,0,512,512);
+            for(let i=0; i<20000; i++) {
+                fctx.fillStyle = `rgba(255,255,255,${Math.random()*0.03})`;
+                fctx.fillRect(Math.random()*512, Math.random()*512, 1, 1);
+            }
+            const feltTex = new THREE.CanvasTexture(feltCanvas);
+            feltTex.wrapS = feltTex.wrapT = THREE.RepeatWrapping;
+            feltTex.repeat.set(4, 4);
+            tableMat.roughnessMap = feltTex;
+
+            scene.add(tableGroup);
+
+            // Lighting
+            const amb = new THREE.AmbientLight(0xfff4e0, 0.4);
+            scene.add(amb);
+            const topLight = new THREE.SpotLight(0xfff5e0, 2.5, 80, Math.PI/4, 0.5, 1);
+            topLight.position.set(0, 25, 5);
+            topLight.castShadow = true;
+            topLight.shadow.mapSize.set(2048, 2048);
+            scene.add(topLight);
+
+            // Post Processing
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+            composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), 0.2, 0.4, 0.9));
+
+            // Physics
+            world = new CANNON.World();
+            world.gravity.set(0, -60, 0);
+            const diceMat = new CANNON.Material();
+            const groundMat = new CANNON.Material();
+            
+            // --- INCREASED BOUNCINESS (Restitution) ---
+            world.addContactMaterial(new CANNON.ContactMaterial(groundMat, diceMat, { 
+                friction: 0.4, 
+                restitution: 0.6 // Increased from 0.15 to 0.6 for significant bounce
+            }));
+            // Dice to Dice bounciness
+            world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { 
+                friction: 0.3, 
+                restitution: 0.7 
+            }));
+
+            const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: groundMat });
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(groundBody);
+
+            const w = 4.8; 
+            const d = 3.8;
+            createWall(new CANNON.Vec3(0, 0, d), new CANNON.Vec3(1, 0, 0), Math.PI);
+            createWall(new CANNON.Vec3(0, 0, -d), new CANNON.Vec3(1, 0, 0), 0);
+            createWall(new CANNON.Vec3(w, 0, 0), new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
+            createWall(new CANNON.Vec3(-w, 0, 0), new CANNON.Vec3(0, 1, 0), Math.PI / 2);
+
+            function createWall(pos, axis, angle) {
+                const body = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: groundMat });
+                body.position.copy(pos);
+                body.quaternion.setFromAxisAngle(axis, angle);
+                world.addBody(body);
+            }
+
+            // Dice
+            const size = 1.05;
+            for(let i=0; i<3; i++) {
+                const boxGeo = new RoundedBoxGeometry(size, size, size, 14, 0.18);
+                const mat = (n) => new THREE.MeshPhysicalMaterial({ 
+                    color: 0xffffff, roughness: 0.2, clearcoat: 0.3, map: createDiceTexture(n) 
+                });
+                const mats = []; for(let j=1; j<=6; j++) mats.push(mat(j));
+                const mesh = new THREE.Mesh(boxGeo, mats);
+                mesh.castShadow = true;
+                scene.add(mesh);
+
+                const body = new CANNON.Body({
+                    mass: 3.0,
+                    shape: new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2)),
+                    material: diceMat,
+                    position: new CANNON.Vec3((Math.random()-0.5)*2, 10 + i*3, (Math.random()-0.5)*2)
+                });
+                body.quaternion.setFromEuler(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                world.addBody(body);
+                diceModels.push({ mesh, body });
+            }
+
+            document.getElementById('roll-btn').addEventListener('click', roll);
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+
+        function createDiceTexture(num) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = '#000';
+            const dot = (x, y) => { ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.fill(); };
+            const l = 64, m = 128, r = 192;
+            const p = {1:[[m,m]],2:[[l,l],[r,r]],3:[[l,l],[m,m],[r,r]],4:[[l,l],[l,r],[r,l],[r,r]],5:[[l,l],[l,r],[m,m],[r,l],[r,r]],6:[[l,l],[l,m],[l,r],[r,l],[r,m],[r,r]]};
+            p[num].forEach(i => dot(i[0], i[1]));
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function roll() {
+            if(isRolling) return; isRolling = true;
+            document.getElementById('result').innerText = "...";
+            diceModels.forEach(d => {
+                d.body.position.set((Math.random()-0.5)*2, 10 + Math.random()*3, (Math.random()-0.5)*1.5);
+                // --- INCREASED INITIAL FORCE ---
+                d.body.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*60, -90, (Math.random()-0.5)*60), d.body.position);
+                d.body.angularVelocity.set((Math.random()-0.5)*120, (Math.random()-0.5)*120, (Math.random()-0.5)*120);
+            });
+            setTimeout(() => {
+                let s = 0;
+                diceModels.forEach(d => {
+                    const f = [{v:1,vec:[1,0,0]},{v:2,vec:[-1,0,0]},{v:3,vec:[0,1,0]},{v:4,vec:[0,-1,0]},{v:5,vec:[0,0,1]},{v:6,vec:[0,0,-1]}];
+                    let m = -1, b = 1;
+                    f.forEach(x => { const v = new THREE.Vector3(...x.vec).applyQuaternion(d.mesh.quaternion); if(v.y > m) { m = v.y; b = x.v; }});
+                    s += b;
+                });
+                document.getElementById('result').innerText = s;
+                isRolling = false;
+            }, 3200);
+        }
+
+        function onResize() {
+            const container = document.getElementById('canvas-container');
+            if(!container) return;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+            composer.setSize(width, height);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            world.step(1/60);
+            diceModels.forEach(d => {
+                d.mesh.position.copy(d.body.position);
+                d.mesh.quaternion.copy(d.body.quaternion);
+            });
+            composer.render();
+        }
+
+        init();
+    </script>
+</body>
+</html>

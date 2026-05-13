@@ -1,0 +1,110 @@
+/* 3D Dice Styling & Game UI */
+
+:root {
+    --gold: #d4af37;
+    --dice-size: 80px;
+    --md-dice-size: 100px;
+}
+
+@media (min-width: 768px) {
+    :root {
+        --dice-size: 100px;
+    }
+}
+
+.perspective-1000 {
+    perspective: 1200px;
+}
+
+.dice-wrapper {
+    width: var(--dice-size);
+    height: var(--dice-size);
+}
+
+.dice {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 1.5s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+}
+
+.face {
+    position: absolute;
+    width: var(--dice-size);
+    height: var(--dice-size);
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--gold);
+    box-shadow: inset 0 0 20px rgba(212, 175, 55, 0.1);
+    border-radius: 12px;
+}
+
+/* Translucent Resin Look */
+.face::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background: radial-gradient(circle at top left, rgba(255,255,255,0.1), transparent);
+    border-radius: 10px;
+}
+
+/* Face Orientations */
+.front  { transform: translateZ(calc(var(--dice-size) / 2)); }
+.back   { transform: rotateY(180deg) translateZ(calc(var(--dice-size) / 2)); }
+.right  { transform: rotateY(90deg) translateZ(calc(var(--dice-size) / 2)); }
+.left   { transform: rotateY(-90deg) translateZ(calc(var(--dice-size) / 2)); }
+.top    { transform: rotateX(90deg) translateZ(calc(var(--dice-size) / 2)); }
+.bottom { transform: rotateX(-90deg) translateZ(calc(var(--dice-size) / 2)); }
+
+/* Dice Dot Styling (Alternative to numbers for higher realism) */
+/* For now using numbers for clarity, but styling them elegantly */
+
+.font-cinzel {
+    font-family: 'Cinzel', serif;
+}
+
+.glass {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+/* Dice Shadow */
+.dice-wrapper::after {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: 10%;
+    width: 80%;
+    height: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    filter: blur(8px);
+    border-radius: 50%;
+    z-index: -1;
+}
+
+/* Rolling Animation State */
+.rolling {
+    animation: shake 0.5s infinite;
+}
+
+@keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    10px { transform: translate(-1px, -2px) rotate(-1deg); }
+    20px { transform: translate(-3px, 0px) rotate(1deg); }
+    30px { transform: translate(3px, 2px) rotate(0deg); }
+    40px { transform: translate(1px, -1px) rotate(1deg); }
+    50px { transform: translate(-1px, 2px) rotate(-1deg); }
+    60px { transform: translate(-3px, 1px) rotate(0deg); }
+    70px { transform: translate(3px, 1px) rotate(-1deg); }
+    80px { transform: translate(-1px, -1px) rotate(1deg); }
+    90px { transform: translate(1px, 2px) rotate(0deg); }
+    100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
