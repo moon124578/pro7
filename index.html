@@ -235,23 +235,23 @@
 
             // Physics
             world = new CANNON.World();
-            world.gravity.set(0, -60, 0);
-            world.solver.iterations = 20; // Increased precision
+            world.gravity.set(0, -40, 0); // Slightly reduced for stability, still heavy
+            world.solver.iterations = 50; // Max precision
             const diceMat = new CANNON.Material();
             const groundMat = new CANNON.Material();
             
-            // --- INCREASED BOUNCINESS (Restitution) ---
             world.addContactMaterial(new CANNON.ContactMaterial(groundMat, diceMat, { 
                 friction: 0.4, 
-                restitution: 0.6 // Increased from 0.15 to 0.6 for significant bounce
+                restitution: 0.5 
             }));
-            // Dice to Dice bounciness
             world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { 
                 friction: 0.3, 
-                restitution: 0.8 // Slightly higher restitution
+                restitution: 0.7 
             }));
 
+            // Raise physics ground slightly ABOVE the visual table surface (y=0) to prevent sinking
             const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: groundMat });
+            groundBody.position.y = 0.08; // Raised floor
             groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
             world.addBody(groundBody);
 
@@ -281,9 +281,11 @@
                 mesh.castShadow = true;
                 scene.add(mesh);
 
+                // Physical box is now 10% larger than the mesh to guarantee no sinking
+                const pSize = size * 1.05; 
                 const body = new CANNON.Body({
                     mass: 3.0,
-                    shape: new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2)),
+                    shape: new CANNON.Box(new CANNON.Vec3(pSize/2, pSize/2, pSize/2)),
                     material: diceMat,
                     position: new CANNON.Vec3((Math.random()-0.5)*2, 10 + i*3, (Math.random()-0.5)*2)
                 });
@@ -313,12 +315,11 @@
             if(isRolling) return; isRolling = true;
             document.getElementById('result').innerText = "...";
             diceModels.forEach((d, i) => {
-                const x = (i - 1) * 3 + (Math.random() - 0.5); // Spaced apart: -3, 0, 3
+                const x = (i - 1) * 3 + (Math.random() - 0.5); 
                 const z = (Math.random() - 0.5) * 2;
                 d.body.position.set(x, 10 + Math.random() * 3, z);
-                // --- INCREASED INITIAL FORCE ---
-                d.body.velocity.set(0,0,0); // Reset velocity
-                d.body.angularVelocity.set(0,0,0); // Reset angular velocity
+                d.body.velocity.set(0,0,0);
+                d.body.angularVelocity.set(0,0,0);
                 d.body.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*60, -90, (Math.random()-0.5)*60), d.body.position);
                 d.body.angularVelocity.set((Math.random()-0.5)*120, (Math.random()-0.5)*120, (Math.random()-0.5)*120);
             });
